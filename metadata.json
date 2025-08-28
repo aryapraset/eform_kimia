@@ -1,0 +1,5 @@
+{
+  "name": "Chemical Traceability System BBSPJIHPMM",
+  "description": "An application to track the usage and inventory of chemicals in the BBSPJIHPMM laboratory. Users can log chemical usage, which automatically updates the inventory dashboard.",
+  "requestFramePermissions": []
+}
