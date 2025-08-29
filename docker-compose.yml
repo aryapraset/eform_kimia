@@ -4,6 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: latsar-arya
     ports:
       - "1001:1001"
     restart: always
