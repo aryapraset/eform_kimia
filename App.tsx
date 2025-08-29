@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Chemical, UsageLog, StockHistory, HistoryLog } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -6,28 +6,75 @@ import UsageForm from './components/UsageForm';
 import AddChemicalForm from './components/AddChemicalForm';
 import UpdateStockModal from './components/UpdateStockModal';
 import History from './components/History';
+import { supabase } from './supabaseClient';
 
-const initialChemicals: Chemical[] = [
-  { id: '1', name: 'Asam Klorida', formula: 'HCl', initialStock: 5000, currentStock: 4500, unit: 'mL', location: 'Rak A1', casNumber: '7647-01-0' },
-  { id: '2', name: 'Natrium Hidroksida', formula: 'NaOH', initialStock: 2000, currentStock: 1850, unit: 'g', location: 'Rak A2', casNumber: '1310-73-2' },
-  { id: '3', name: 'Asam Sulfat', formula: 'H₂SO₄', initialStock: 3000, currentStock: 1200, unit: 'mL', location: 'Rak B1', casNumber: '7664-93-9' },
-  { id: '4', name: 'Etanol', formula: 'C₂H₅OH', initialStock: 10000, currentStock: 9500, unit: 'mL', location: 'Rak C3', casNumber: '64-17-5' },
-  { id: '5', name: 'Aseton', formula: 'C₃H₆O', initialStock: 5000, currentStock: 4800, unit: 'mL', location: 'Rak C4', casNumber: '67-64-1' },
-  { id: '6', name: 'Kalium Permanganat', formula: 'KMnO₄', initialStock: 500, currentStock: 150, unit: 'g', location: 'Rak D1', casNumber: '7722-64-7' },
-  { id: '7', name: 'Metanol', formula: 'CH₃OH', initialStock: 5000, currentStock: 4900, unit: 'mL', location: 'Rak C5', casNumber: '67-56-1' },
-  { id: '8', name: 'Iodium', formula: 'I₂', initialStock: 250, currentStock: 250, unit: 'g', location: 'Rak D2', casNumber: '7553-56-2' },
-];
+// Hapus initialChemicals karena akan diambil dari Supabase
 
 type View = 'dashboard' | 'form' | 'add-chemical-form' | 'history';
 
 function App() {
-  const [chemicals, setChemicals] = useState<Chemical[]>(initialChemicals);
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
   const [stockHistory, setStockHistory] = useState<StockHistory[]>([]);
   const [view, setView] = useState<View>('dashboard');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [updatingChemical, setUpdatingChemical] = useState<Chemical | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Fetch data from Supabase on component mount
+  useEffect(() => {
+    fetchChemicals();
+    fetchUsageLogs();
+    fetchStockHistory();
+  }, []);
+
+  const fetchChemicals = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('chemicals')
+        .select('*');
+
+      if (error) throw error;
+
+      if (data) setChemicals(data);
+    } catch (error) {
+      console.error('Error fetching chemicals:', error);
+      showNotification('Gagal memuat data bahan kimia', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUsageLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('usage_logs')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) setUsageLogs(data);
+    } catch (error) {
+      console.error('Error fetching usage logs:', error);
+    }
+  };
+
+  const fetchStockHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('stock_history')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) setStockHistory(data);
+    } catch (error) {
+      console.error('Error fetching stock history:', error);
+    }
+  };
 
   const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -36,79 +83,159 @@ function App() {
     }, 3000);
   };
 
-  const handleLogUsage = useCallback((log: Omit<UsageLog, 'id' | 'date' | 'type' | 'chemicalName' | 'chemicalFormula' | 'unit'>) => {
-    const chemical = chemicals.find(c=>c.id === log.chemicalId);
+  const handleLogUsage = useCallback(async (log: Omit<UsageLog, 'id' | 'date' | 'type' | 'chemicalName' | 'chemicalFormula' | 'unit'>) => {
+    const chemical = chemicals.find(c => c.id === log.chemicalId);
     if (!chemical) return;
 
-    setChemicals(prevChemicals =>
-      prevChemicals.map(chem => {
-        if (chem.id === log.chemicalId) {
-          const newStock = chem.currentStock - log.amountUsed;
-          return { ...chem, currentStock: newStock < 0 ? 0 : newStock };
-        }
-        return chem;
-      })
-    );
+    const newStock = chemical.currentStock - log.amountUsed;
+    const updatedStock = newStock < 0 ? 0 : newStock;
 
-    const newLog: UsageLog = {
-      ...log,
-      id: `usage-${Date.now()}`,
-      date: new Date().toISOString(),
-      type: 'usage',
-      chemicalName: chemical.name,
-      chemicalFormula: chemical.formula,
-      unit: chemical.unit,
-    };
-    setUsageLogs(prev => [newLog, ...prev]);
+    // Update chemical stock in Supabase
+    try {
+      const { error: updateError } = await supabase
+        .from('chemicals')
+        .update({ currentStock: updatedStock })
+        .eq('id', log.chemicalId);
 
-    showNotification(`Penggunaan ${log.amountUsed} ${chemical.unit} ${chemical.name} berhasil dicatat!`, 'success');
-    setView('dashboard');
+      if (updateError) throw updateError;
+
+      // Update local state
+      setChemicals(prevChemicals =>
+        prevChemicals.map(chem => {
+          if (chem.id === log.chemicalId) {
+            return { ...chem, currentStock: updatedStock };
+          }
+          return chem;
+        })
+      );
+
+      // Create new usage log
+      const newLog: UsageLog = {
+        ...log,
+        id: `usage-${Date.now()}`,
+        date: new Date().toISOString(),
+        type: 'usage',
+        chemicalName: chemical.name,
+        chemicalFormula: chemical.formula,
+        unit: chemical.unit,
+      };
+
+      // Insert usage log to Supabase
+      const { error: logError } = await supabase
+        .from('usage_logs')
+        .insert(newLog);
+
+      if (logError) throw logError;
+
+      // Update local state
+      setUsageLogs(prev => [newLog, ...prev]);
+
+      showNotification(`Penggunaan ${log.amountUsed} ${chemical.unit} ${chemical.name} berhasil dicatat!`, 'success');
+      setView('dashboard');
+    } catch (error) {
+      console.error('Error logging usage:', error);
+      showNotification('Gagal mencatat penggunaan bahan kimia', 'error');
+    }
   }, [chemicals]);
 
-  const handleAddChemical = useCallback((newChemicalData: Omit<Chemical, 'id' | 'currentStock'>, user: string) => {
-    const newChemical: Chemical = {
-      ...newChemicalData,
-      id: `chem-${Date.now()}`,
-      currentStock: newChemicalData.initialStock,
-    };
-    setChemicals(prev => [...prev, newChemical].sort((a, b) => a.name.localeCompare(b.name)));
-    
-    const newStockLog: StockHistory = {
-      id: `stock-${Date.now()}`,
-      type: 'stock_update',
-      chemicalId: newChemical.id,
-      chemicalName: newChemical.name,
-      chemicalFormula: newChemical.formula,
-      amountAdded: newChemical.initialStock,
-      previousStock: 0,
-      newStock: newChemical.initialStock,
-      user: user,
-      date: new Date().toISOString(),
-      unit: newChemical.unit,
-    };
-    setStockHistory(prev => [newStockLog, ...prev]);
+  const handleAddChemical = useCallback(async (newChemicalData: Omit<Chemical, 'id' | 'currentStock'>, user: string) => {
+    try {
+      // Buat ID unik untuk bahan kimia baru
+      const newChemical: Chemical = {
+        ...newChemicalData,
+        id: `chem-${Date.now()}`,
+        currentStock: newChemicalData.initialStock,
+      };
 
-    showNotification(`Bahan kimia ${newChemical.name} berhasil ditambahkan!`, 'success');
-    setView('dashboard');
+      console.log("Mencoba menambahkan bahan kimia:", newChemical);
+
+      // Insert new chemical to Supabase
+      const { data: insertedChemical, error: chemicalError } = await supabase
+        .from('chemicals')
+        .insert(newChemical)
+        .select()
+        .single();
+
+      if (chemicalError) {
+        console.error("Error detail:", chemicalError);
+        throw chemicalError;
+      }
+
+      console.log("Bahan kimia berhasil ditambahkan:", insertedChemical);
+
+      // Update local state
+      setChemicals(prev => [...prev, newChemical].sort((a, b) => a.name.localeCompare(b.name)));
+
+      // Create stock history log
+      const newStockLog: StockHistory = {
+        id: `stock-${Date.now()}`,
+        type: 'stock_update',
+        chemicalId: newChemical.id,
+        chemicalName: newChemical.name,
+        chemicalFormula: newChemical.formula,
+        amountAdded: newChemical.initialStock,
+        previousStock: 0,
+        newStock: newChemical.initialStock,
+        user: user,
+        date: new Date().toISOString(),
+        unit: newChemical.unit,
+      };
+
+      console.log("Mencoba menambahkan riwayat stok:", newStockLog);
+
+      // Insert stock history to Supabase
+      const { error: historyError } = await supabase
+        .from('stock_history')
+        .insert(newStockLog);
+
+      if (historyError) {
+        console.error("Error detail riwayat:", historyError);
+        throw historyError;
+      }
+
+      // Update local state
+      setStockHistory(prev => [newStockLog, ...prev]);
+
+      showNotification(`Bahan kimia ${newChemical.name} berhasil ditambahkan!`, 'success');
+      setView('dashboard');
+    } catch (error: any) {
+      console.error('Error adding chemical:', error);
+      // Tampilkan pesan error yang lebih spesifik
+      showNotification(`Gagal menambahkan bahan kimia: ${error.message || 'Terjadi kesalahan'}`, 'error');
+    }
   }, []);
-  
-  const handleUpdateStock = useCallback((chemicalId: string, newStock: number, user: string) => {
+
+  const handleUpdateStock = useCallback(async (chemicalId: string, newStock: number, user: string) => {
     const chemical = chemicals.find(c => c.id === chemicalId);
     if (!chemical) return;
-    
+
     const amountAdded = newStock - chemical.currentStock;
+    const newInitialStock = newStock > chemical.initialStock ? newStock : chemical.initialStock;
 
-    setChemicals(prevChemicals =>
-      prevChemicals.map(chem => {
-        if (chem.id === chemicalId) {
-          const newInitialStock = newStock > chem.initialStock ? newStock : chem.initialStock;
-          return { ...chem, currentStock: newStock, initialStock: newInitialStock };
-        }
-        return chem;
-      })
-    );
+    try {
+      // Update chemical in Supabase
+      const { error: updateError } = await supabase
+        .from('chemicals')
+        .update({
+          currentStock: newStock,
+          initialStock: newInitialStock
+        })
+        .eq('id', chemicalId);
 
-    const newStockLog: StockHistory = {
+      if (updateError) throw updateError;
+
+      // Update local state
+      setChemicals(prevChemicals =>
+        prevChemicals.map(chem => {
+          if (chem.id === chemicalId) {
+            return { ...chem, currentStock: newStock, initialStock: newInitialStock };
+          }
+          return chem;
+        })
+      );
+
+      // Create stock history log
+      const newStockLog: StockHistory = {
         id: `stock-${Date.now()}`,
         type: 'stock_update',
         chemicalId: chemical.id,
@@ -120,11 +247,24 @@ function App() {
         user: user,
         date: new Date().toISOString(),
         unit: chemical.unit,
-    };
-    setStockHistory(prev => [newStockLog, ...prev]);
+      };
 
-    showNotification(`Stok ${chemical.name} berhasil diperbarui!`, 'success');
-    setUpdatingChemical(null); // Close modal
+      // Insert stock history to Supabase
+      const { error: historyError } = await supabase
+        .from('stock_history')
+        .insert(newStockLog);
+
+      if (historyError) throw historyError;
+
+      // Update local state
+      setStockHistory(prev => [newStockLog, ...prev]);
+
+      showNotification(`Stok ${chemical.name} berhasil diperbarui!`, 'success');
+      setUpdatingChemical(null); // Close modal
+    } catch (error) {
+      console.error('Error updating stock:', error);
+      showNotification('Gagal memperbarui stok bahan kimia', 'error');
+    }
   }, [chemicals]);
 
 
@@ -138,8 +278,19 @@ function App() {
       chem.casNumber.toLowerCase().includes(query)
     );
   });
-  
+
   const allHistory: HistoryLog[] = [...usageLogs, ...stockHistory].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Memuat data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-dark font-sans">
