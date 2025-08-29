@@ -17,6 +17,7 @@ const AddChemicalForm: React.FC<AddChemicalFormProps> = ({ locations, onAddChemi
     initialStock: 0,
     unit: 'mL',
     casNumber: '',
+    expirationDate: '',
   });
   const [location, setLocation] = useState<string>(locations[0] || '');
   const [newLocation, setNewLocation] = useState<string>('');
@@ -69,9 +70,15 @@ const AddChemicalForm: React.FC<AddChemicalFormProps> = ({ locations, onAddChemi
                     </div>
                 </div>
 
-                <div>
-                    <label htmlFor="casNumber" className="block text-sm font-medium text-gray-700 mb-1">Nomor CAS (Opsional)</label>
-                    <input type="text" name="casNumber" id="casNumber" value={formData.casNumber} onChange={handleChange} placeholder="e.g., 7647-01-0" className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary transition duration-150" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label htmlFor="casNumber" className="block text-sm font-medium text-gray-700 mb-1">Nomor CAS (Opsional)</label>
+                        <input type="text" name="casNumber" id="casNumber" value={formData.casNumber} onChange={handleChange} placeholder="e.g., 7647-01-0" className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary transition duration-150" />
+                    </div>
+                    <div>
+                        <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700 mb-1">Tanggal Kadaluarsa (Opsional)</label>
+                        <input type="date" name="expirationDate" id="expirationDate" value={formData.expirationDate} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary transition duration-150" />
+                    </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

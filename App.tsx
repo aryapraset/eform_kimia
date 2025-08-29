@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Chemical, UsageLog, StockHistory, HistoryLog } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -267,6 +267,14 @@ function App() {
     }
   }, [chemicals]);
 
+  const lowStockChemicals = useMemo(() => {
+    return chemicals.filter(chem => {
+      if (chem.initialStock === 0) return false;
+      const stockPercentage = (chem.currentStock / chem.initialStock) * 100;
+      return stockPercentage < 10;
+    });
+  }, [chemicals]);
+
 
   const uniqueLocations = [...new Set(chemicals.map(c => c.location))].sort();
 
@@ -301,7 +309,7 @@ function App() {
       )}
       <Header setView={setView} />
       <main className="container mx-auto p-4 md:p-8">
-        {view === 'dashboard' && <Dashboard chemicals={filteredChemicals} onOpenUpdateModal={setUpdatingChemical} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
+        {view === 'dashboard' && <Dashboard chemicals={filteredChemicals} onOpenUpdateModal={setUpdatingChemical} searchQuery={searchQuery} onSearchChange={setSearchQuery} lowStockChemicals={lowStockChemicals} />}
         {view === 'form' && <UsageForm chemicals={chemicals} onLogUsage={handleLogUsage} onCancel={() => setView('dashboard')} />}
         {view === 'add-chemical-form' && <AddChemicalForm locations={uniqueLocations} onAddChemical={handleAddChemical} onCancel={() => setView('dashboard')} />}
         {view === 'history' && <History logs={allHistory} />}
