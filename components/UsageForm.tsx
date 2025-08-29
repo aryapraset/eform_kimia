@@ -36,6 +36,16 @@ const UsageForm: React.FC<UsageFormProps> = ({ chemicals, onLogUsage, onCancel }
     setError(null);
     onLogUsage({ chemicalId, amountUsed: amount, user });
   };
+  
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+     // Adjust for timezone offset to display the correct date
+    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() + userTimezoneOffset).toLocaleDateString('id-ID', {
+      day: '2-digit', month: 'short', year: 'numeric'
+    });
+  };
 
   return (
     <section className="max-w-2xl mx-auto animate-fade-in">
@@ -56,7 +66,7 @@ const UsageForm: React.FC<UsageFormProps> = ({ chemicals, onLogUsage, onCancel }
                     >
                         {chemicals.map(chem => (
                             <option key={chem.id} value={chem.id}>
-                                {chem.name} ({chem.formula}) - Stok: {chem.currentStock} {chem.unit}
+                                {chem.name} ({chem.formula}) - Lokasi: {chem.location} | Exp: {formatDate(chem.expirationDate)} | Stok: {chem.currentStock} {chem.unit}
                             </option>
                         ))}
                     </select>

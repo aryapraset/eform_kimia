@@ -8,6 +8,7 @@ export interface Chemical {
   unit: 'mL' | 'g' | 'L' | 'kg';
   location: string;
   casNumber: string;
+  expirationDate?: string;
 }
 
 export interface UsageLog {

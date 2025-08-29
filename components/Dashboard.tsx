@@ -1,15 +1,17 @@
 import React from 'react';
 import { Chemical } from '../types';
 import ChemicalCard from './ChemicalCard';
+import LowStockNotification from './LowStockNotification';
 
 interface DashboardProps {
   chemicals: Chemical[];
   onOpenUpdateModal: (chemical: Chemical) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  lowStockChemicals: Chemical[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ chemicals, onOpenUpdateModal, searchQuery, onSearchChange }) => {
+const Dashboard: React.FC<DashboardProps> = ({ chemicals, onOpenUpdateModal, searchQuery, onSearchChange, lowStockChemicals }) => {
   return (
     <section className="animate-fade-in">
       <h2 className="text-3xl font-bold text-primary mb-6">Inventaris Bahan Kimia</h2>
@@ -29,6 +31,8 @@ const Dashboard: React.FC<DashboardProps> = ({ chemicals, onOpenUpdateModal, sea
             aria-label="Cari bahan kimia"
           />
       </div>
+
+      <LowStockNotification chemicals={lowStockChemicals} onOpenUpdateModal={onOpenUpdateModal} />
 
       {chemicals.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
